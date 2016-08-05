@@ -101,7 +101,6 @@ storage.tag['hot_template'] = engine_hot.current_snapshot
 # Define order parameters
 # Compute the closest heavy atom distances between receptor and ligand
 # TODO: How do we restrict this to only residues 0 and 1?
-print(template.topology)
 compute_contacts = paths.MDTrajFunctionCV(
     name="compute_contacts",
     cv_scalarize_numpy_singletons=False, # needed because compute_contacts() does not return a single numpy array
@@ -117,8 +116,8 @@ storage.save([compute_contacts])
 # Create CV states for bound and unbound
 def compute_cv(snapshot, center, compute_contacts):
     from simtk import unit
-    [distances, residue_pairs] = compute_contacts(snapshot)
-    return distances[0] / unit.angstroms
+    distances = compute_contacts(snapshot)
+    return distances[0][0] * 10 # convert from nanometers
 
 # State definitions
 states = ['bound', 'unbound']
@@ -144,6 +143,7 @@ for state in state_centers:
     cv_state[state] = op
 
 # Create interfaces
+print('Creating interface list...')
 interface_list = {}
 for state in interface_levels:
     levels = interface_levels[state]
@@ -158,6 +158,7 @@ stAll.name = 'all'
 storage.save(stAll)
 
 # Initial core
+print('Define initial core...')
 paths.EngineMover.engine = engine_hot
 
 reach_core = paths.SequentialEnsemble([
@@ -178,5 +179,135 @@ core2core = paths.SequentialEnsemble(
 )
 
 # Generate initial trajectory
+print('Generate initial trajectory...')
 init_traj = engine_hot.generate(template, [reach_core.can_append])
+
+# Write information about initial state
+def state_information(snapshot):
+    for state in states:
+        cv = cv_state[state]
+        print '%s: %7.2f' % (state, cv(snapshot)),
+        for idx, interface in enumerate(interface_list[state]):
+            if interface(snapshot):
+                print '+',
+                current_state = state
+            else:
+                print '-',
+
+        print
+
+    print 'The initial configuration is in state', current_state
 state_information(init_traj[-1])
+
+# Generate intercore trajectories
+print('Generate intercore trajectories...')
+tt = init_traj
+found_states = set()
+missing_states = set(states)
+data = np.array([[cv_state[state](frame) for state in states] for frame in tt])
+found_states.update([state for state in missing_states if any(map(interface_list[state][0], tt))])
+missing_states = missing_states - found_states
+storage.save(tt)
+initials = {state : list() for state in states}
+
+chunksize = 5
+first = True
+count = 0
+while len(missing_states) > 0 or first:
+    first = False
+    while True:
+        try:
+            count += 1
+            tt = engine_hot.generate_forward(tt[-1].reversed, core2core)
+            storage.save(tt)
+
+            for state in states:
+                if vol_state[state](tt[0]):
+                    initials[state].append(tt[0])
+                if vol_state[state](tt[-1]):
+                    initials[state].append(tt[-1].reversed)
+
+            found_states.update([state for state in missing_states if any(map(vol_state[state], tt[[0,-1]]))])
+            missing_states = missing_states - found_states
+            paths.tools.refresh_output(
+                '[%4d] %4d  %s < %4d > %s   still missing states %s' % (
+                    count,
+                    len(storage.trajectories),
+                    get_state(tt[0]),
+                    len(tt) - 2,
+                    get_state(tt[-1]),
+                    ''.join(missing_states)
+                )
+            )
+
+            if len(storage.trajectories) % chunksize == 0:
+                break
+        except ValueError:
+            paths.tools.refresh_output(
+                '[%4d] %4d  %s < ERROR > ??   still missing states %s' % (
+                    count,
+                    len(storage.trajectories),
+                    get_state(tt[0]),
+                    ''.join(missing_states)
+                )
+            )
+
+paths.tools.refresh_output(
+                'DONE !'
+            )
+
+# Set up MSTIS
+print('Set up MSTIS')
+mstis = paths.MSTISNetwork([
+    (
+        vol_state[state],
+        interface_list[state][0:],
+        cv_state[state]
+    ) for state in states
+])
+
+storage.save(mstis)
+
+initial_bootstrap = dict()
+
+for state in states:
+    while state not in initial_bootstrap:
+        try:
+            paths.tools.refresh_output(
+                'Bootstrapping state ' + state
+            )
+            from_state = vol_state[state]
+            bootstrapA = paths.FullBootstrapping(
+                transition=mstis.from_state[from_state],
+                snapshot=random.choice(initials[state]),
+                engine=engine,
+                extra_interfaces=[interface_list[state][-1]],
+                initial_max_length=20
+            )
+            paths.tools.refresh_output(
+                'Bootstrapping state ' + state + " - let's go"
+            )
+            final = bootstrapA.run(max_ensemble_rounds=2, build_attempts=5)
+            if all([s.ensemble(s) for s in final]):
+                initial_bootstrap[state] = final
+        except ValueError:
+            paths.tools.refresh_output(
+                'Encountered NaN'
+            )
+        except RuntimeError:
+            paths.tools.refresh_output(
+                'Too many attempts. Start retry.'
+            )
+
+paths.tools.refresh_output(
+    'DONE!'
+)
+
+total_sample_set = paths.SampleSet.relabel_replicas_per_ensemble(
+    initial_bootstrap.values()
+)
+
+total_sample_set.sanity_check()
+
+storage.save(total_sample_set)
+storage.sync_all()
