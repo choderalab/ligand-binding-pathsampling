@@ -45,15 +45,16 @@ integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
-platform = openmm.Platform.getPlatformByName('CPU')
+platform_name = 'OpenCL'
+platform = openmm.Platform.getPlatformByName(platform_name)
 properties = {'OpenCLPrecision': 'mixed'}
 
 # Create an engine
 print('Creating engine...')
 engine_options = {
     'n_frames_max': 1000,
-    'platform': 'CPU',
-    'n_steps_per_frame': 50
+    'platform': platform_name,
+    'n_steps_per_frame': 250
 }
 engine = engine.Engine(
     template.topology,
@@ -66,7 +67,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(1800*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -137,17 +138,24 @@ interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
 
-initial_trajectory_method = 'high-temperature'
+initial_trajectory_method = 'bootstrap'
 if initial_trajectory_method == 'high-temperature':
     # generate high-temperature trajectory
     print('Generating high-temperature trajectory...')
-    ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
-    long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
-    # split out the subtrajectory of interest
+    ensemble = paths.ExitsXEnsemble(bound) & paths.EntersXEnsemble(unbound)
+    initial_trajectories = list()
     tmp_network = paths.TPSNetwork(bound, unbound)
-    initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
+    attempt = 0
+    while len(initial_trajectories) == 0:
+        print('Attempt %d' % attempt)
+        long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
+        print(long_trajectory)
+        # split out the subtrajectory of interest
+        initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
+        print(initial_trajectories)
+        attempt += 1
 
-elif initial_trajectory_method == 'ratchet':
+elif initial_trajectory_method == 'bootstrap':
     print('Bootstrapping initial trajectory...')
     bootstrap = paths.FullBootstrapping(
         transition=mistis.transitions[(bound, unbound)],
@@ -156,6 +164,7 @@ elif initial_trajectory_method == 'ratchet':
     )
     initial_sample_set = bootstrap.run()
     initial_trajectories = [s.trajectory for s in initial_sample_set]
+    print(initial_trajectories)
 else:
     raise Exception('initial trajectory method "%s" unknown' % initial_trajectory_method)
 
@@ -166,7 +175,20 @@ scheme = paths.DefaultScheme(mistis, engine=engine)
 sset = scheme.initial_conditions_from_trajectories(initial_trajectories)
 print scheme.initial_conditions_report(sset)
 
-print('MISTIS')
+# Populate minus ensemble
+print('Populating the minus ensemble')
+minus_samples = []
+for minus in mistis.minus_ensembles:
+    samp = minus.populate_minus_ensemble_from_set(
+        samples=sset,
+        minus_replica_id=-mistis.minus_ensembles.index(minus)-1,
+        engine=engine
+    )
+    minus_samples.append(samp)
+
+sset = sset.apply_samples(minus_samples)
+
+print('Running MISTIS')
 mistis_calc = paths.PathSampling(
     storage=storage,
     move_scheme=scheme,
