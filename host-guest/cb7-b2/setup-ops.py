@@ -245,43 +245,49 @@ while len(missing_states) > 0 or first:
     while True:
         try:
             count += 1
-            tt = engine_hot.generate_forward(tt[-1].reversed, core2core)
-            storage.save(tt)
+            try:
+                tt = engine_hot.generate_forward(tt[-1].reversed, core2core)
+                storage.save(tt)
 
-            for state in states:
-                if vol_state[state](tt[0]):
-                    initials[state].append(tt[0])
-                if vol_state[state](tt[-1]):
-                    initials[state].append(tt[-1].reversed)
+                for state in states:
+                    if vol_state[state](tt[0]):
+                        initials[state].append(tt[0])
+                    if vol_state[state](tt[-1]):
+                        initials[state].append(tt[-1].reversed)
 
-            found_states.update([state for state in missing_states if any(map(vol_state[state], tt[[0,-1]]))])
-            missing_states = missing_states - found_states
-            paths.tools.refresh_output(
-                '[%4d] %4d  %s < %4d > %s   still missing states %s\n' % (
-                    count,
-                    len(storage.trajectories),
-                    get_state(tt[0]),
-                    len(tt) - 2,
-                    get_state(tt[-1]),
-                    ''.join(missing_states)
+                found_states.update([state for state in missing_states if any(map(vol_state[state], tt[[0,-1]]))])
+                missing_states = missing_states - found_states
+                paths.tools.refresh_output(
+                    '[%4d] %4d  %s < %4d > %s   still missing states %s\n' % (
+                        count,
+                        len(storage.trajectories),
+                        get_state(tt[0]),
+                        len(tt) - 2,
+                        get_state(tt[-1]),
+                        ''.join(missing_states)
+                    )
                 )
-            )
 
-            if len(storage.trajectories) % chunksize == 0:
-                break
-        except ValueError:
-            paths.tools.refresh_output(
-                '[%4d] %4d  %s < ERROR > ??   still missing states %s\n' % (
-                    count,
-                    len(storage.trajectories),
-                    get_state(tt[0]),
-                    ''.join(missing_states)
+                if len(storage.trajectories) % chunksize == 0:
+                    break
+            except ValueError:
+                paths.tools.refresh_output(
+                    '[%4d] %4d  %s < ERROR > ??   still missing states %s\n' % (
+                        count,
+                        len(storage.trajectories),
+                        get_state(tt[0]),
+                        ''.join(missing_states)
+                    )
                 )
-            )
 
-paths.tools.refresh_output(
-                'DONE !'
-            )
+        except Exception as e:
+            # NaN exception?
+            if str(e) == 'Particle coordinate is nan':
+                print(e)
+            else:
+                raise(e)
+
+paths.tools.refresh_output('DONE!\n')
 
 # Set up MSTIS
 print('Set up MSTIS')
