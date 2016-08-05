@@ -41,7 +41,7 @@ print('Creating template...')
 template = engine.snapshot_from_testsystem(testsystem)
 
 print('Creating an integrator...')
-integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
+integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
@@ -66,7 +66,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
