@@ -125,8 +125,8 @@ states = [
     'bound  ',
     'unbound']
 
-max_bound   = 3.0
-min_unbound = 7.0
+max_bound   = 3.0 # angstroms, maximum bound state separation distance
+min_unbound = 7.0 # angstroms, minimum unbound state separation distance
 
 print('Creating interfaces...')
 ninterfaces = 30
@@ -135,27 +135,31 @@ bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 6.9, ninterfaces))
 
-# generate high-temperature trajectory
-#print('Generating high-temperature trajectory...')
-#ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
-#long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
-# split out the subtrajectory of interest
-#tmp_network = paths.TPSNetwork(bound, unbound)
-#short_trajectory = tmp_network.all_ensembles[0].split(long_trajectory)
-
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
 
-print('Bootstrapping initial trajectory...')
-bootstrap = paths.FullBootstrapping(
-    transition=mistis.transitions[(bound, unbound)],
-    snapshot=initial_snapshot_hot,
-    engine=engine_hot
-)
-bootstrap.run()
+initial_trajectory_method = 'high-temperature'
+if initial_trajectory_method == 'high-temperature':
+    # generate high-temperature trajectory
+    print('Generating high-temperature trajectory...')
+    ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
+    long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
+    # split out the subtrajectory of interest
+    tmp_network = paths.TPSNetwork(bound, unbound)
+    short_trajectory = tmp_network.all_ensembles[0].split(long_trajectory)
+    initial_trajectories = [ short_trajectory ]
 
-initial_trajectories = [ s.trajectory for s in list(bootstrap) ]
-
+elif initial_trajectory_method == 'ratchet':
+    print('Bootstrapping initial trajectory...')
+    bootstrap = paths.FullBootstrapping(
+        transition=mistis.transitions[(bound, unbound)],
+        snapshot=initial_snapshot_hot,
+        engine=engine_hot
+    )
+    bootstrap.run()
+    initial_trajectories = [ s.trajectory for s in list(bootstrap) ]
+else:
+    raise Exception('initial trajectory method "%s" unknown' % initial_trajectory_method)
 
 # Create a network to study unbinding paths
 # note the list/tuple structure: that's because this is normally a list of tuples,
