@@ -17,6 +17,9 @@ import openpathsampling.engines.openmm as engine
 
 import mdtraj as md
 
+# Import mojo for using units
+paths.netcdfplus.dictify.ObjectJSON.safe_modules += ['simtk', 'unit']
+
 ################################################################################
 # PARAMETERS
 ################################################################################
@@ -113,9 +116,9 @@ storage.save([compute_contacts])
 
 # Create CV states for bound and unbound
 def compute_cv(snapshot, center, compute_contacts):
-    import simtk.unit
+    from simtk import unit
     [distances, residue_pairs] = compute_contacts(snapshot)
-    return distances[0] / simtk.unit.angstroms
+    return distances[0] / unit.angstroms
 
 # State definitions
 states = ['bound', 'unbound']
