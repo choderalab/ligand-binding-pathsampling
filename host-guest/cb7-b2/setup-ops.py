@@ -135,36 +135,43 @@ bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 6.9, ninterfaces))
 
+# generate high-temperature trajectory
+#print('Generating high-temperature trajectory...')
+#ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
+#long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
+# split out the subtrajectory of interest
+#tmp_network = paths.TPSNetwork(bound, unbound)
+#short_trajectory = tmp_network.all_ensembles[0].split(long_trajectory)
+
+print('Creating network...')
+mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
+
+print('Bootstrapping initial trajectory...')
+bootstrap = paths.FullBootstrapping(
+    transition=mistis.transitions[(bound, unbound)],
+    snapshot=initial_snapshot_hot,
+    engine=engine_hot
+)
+bootstrap.run()
+
+initial_trajectories = [ s.trajectory for s in list(bootstrap) ]
+
+
 # Create a network to study unbinding paths
 # note the list/tuple structure: that's because this is normally a list of tuples,
 # each tuple representing a transition to study
-print('Creating network...')
-network = paths.MISTISNetwork([(bound, interfaces, unbound)])
+scheme = paths.DefaultScheme(mistis, engine=engine)
+sset = scheme.initial_conditions_from_trajectories(initial_trajectories)
+print scheme.initial_conditions_report(sset)
 
-# generate high-temperature trajectory
-print('Generating high-temperature trajectory...')
-ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
-long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
-
-# split out the subtrajectory of interest
-tmp_network = paths.TPSNetwork(bound, unbound)
-short_trajectory = tmp_network.all_ensembles[0].split(long_trajectory)
-
-bootstrap = paths.FullBootstrapping(
-    transition=network.transitions[(bound, unbound)],
-    snapshot=initial_snapshot,
-    engine=engine
+print('MISTIS')
+mistis_calc = paths.PathSampling(
+    storage=storage,
+    move_scheme=scheme,
+    sample_set=sset
 )
+mistis_calc.save_frequency = 100
 
-#
-# OLD
-#
-
-total_sample_set = paths.SampleSet.relabel_replicas_per_ensemble(
-    initial_bootstrap.values()
-)
-
-total_sample_set.sanity_check()
-
-storage.save(total_sample_set)
-storage.sync_all()
+import logging.config
+logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
+mistis_calc.run(400)
