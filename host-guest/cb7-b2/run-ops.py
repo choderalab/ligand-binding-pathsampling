@@ -114,19 +114,19 @@ storage.save([compute_contacts])
 # Create CV states for bound and unbound
 def compute_cv(snapshot, center, compute_contacts):
     [distances, residue_pairs] = compute_contacts(snapshot)
-    return distances[0]
+    return distances[0] / unit.angstroms
 
 # State definitions
 states = ['bound', 'unbound']
 
 state_centers = {
-    'bound' : 0.0 * unit.angstrom,
-    'unbound' : 10.0 * unit.angstrom,
+    'bound' : 0.0,
+    'unbound' : 10.0,
 }
 
 interface_levels = {
-    'bound' : np.array([0.0, 10.0]) * unit.angstroms,
-    'unbound' : np.array([0.0, 10.0]) * unit.angstroms
+    'bound' : np.array([0.0, 10.0]),
+    'unbound' : np.array([0.0, 10.0])
 }
 
 cv_state = dict()
