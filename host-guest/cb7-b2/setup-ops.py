@@ -100,8 +100,7 @@ storage.tag['hot_template'] = engine_hot.current_snapshot
 
 # Define order parameters
 # Compute the closest heavy atom distances between receptor and ligand
-# TODO: How do we restrict this to only residues 0 and 1?
-compute_contacts = paths.MDTrajFunctionCV(
+cv = paths.MDTrajFunctionCV(
     name="compute_contacts",
     cv_scalarize_numpy_singletons=False, # needed because compute_contacts() does not return a single numpy array
     contacts=[[0,1]],
@@ -111,12 +110,12 @@ compute_contacts = paths.MDTrajFunctionCV(
     ignore_nonprotein=False,
     periodic=True
 ).with_diskcache()
-storage.save([compute_contacts])
+storage.save([cv])
 
 # Create CV states for bound and unbound
 def compute_cv(snapshot, center, compute_contacts):
     from simtk import unit
-    distances = compute_contacts(snapshot)
+    distances = cv(snapshot)
     distance = distances[0][0] * 10 # convert from nanometers to angstroms
     #print('%8.3f' % distance)
     return distance
@@ -126,218 +125,40 @@ states = [
     'bound  ',
     'unbound']
 
-state_centers = {
-    'bound  ' : 3.0,
-    'unbound' : 7.0,
-}
+max_bound   = 3.0
+min_unbound = 7.0
 
+print('Creating interfaces...')
 ninterfaces = 30
-print('There are %d interfaces per state')
-interface_levels = {
-    'bound  ' : np.linspace(3.1, 5.0, ninterfaces),
-    'unbound' : np.linspace(5.1, 6.9, ninterfaces)
-}
+# note that we just changed CVRangeVolume => CVDefinedVolume, but you haven't updated that yet
+bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
+unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 6.9, ninterfaces))
 
-cv_state = dict()
-for state in state_centers:
-    op = paths.FunctionCV(
-        name = 'op' + state,
-        f=compute_cv,
-        center=state_centers[state],
-        compute_contacts=compute_contacts
-    )
-    cv_state[state] = op
+# Create a network to study unbinding paths
+# note the list/tuple structure: that's because this is normally a list of tuples,
+# each tuple representing a transition to study
+print('Creating network...')
+network = paths.MISTISNetwork([(bound, interfaces, unbound)])
 
-# Create interfaces
-print('Creating interface list...')
-interface_list = {}
-for state in interface_levels:
-    levels = interface_levels[state]
-    interface_list[state] = [None] * len(levels)
-    for idx, level in enumerate(levels):
-        interface_list[state][idx] = paths.CVRangeVolume(cv_state[state], lambda_max=level)
-        interface_list[state][idx].name = state + str(idx)
+# generate high-temperature trajectory
+print('Generating high-temperature trajectory...')
+ensemble = paths.AllOutXEnsemble(bound) | paths.AllOutXEnsemble(unbound)
+long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
 
-vol_state = {state : interface_list[state][0] for state in interface_list}
-stAll = reduce(lambda x, y: x | y, [vol_state[state] for state in states])
-stAll.name = 'all'
-storage.save(stAll)
+# split out the subtrajectory of interest
+tmp_network = paths.TPSNetwork(bound, unbound)
+short_trajectory = tmp.network.ensembles[0].split(long_trajectory)
 
-# Initial core
-print('Define initial core...')
-paths.EngineMover.engine = engine_hot
-
-reach_core = paths.SequentialEnsemble([
-        paths.OptionalEnsemble(paths.AllOutXEnsemble(stAll)),
-        paths.SingleFrameEnsemble(
-            paths.AllInXEnsemble(stAll)
-        )
-    ])
-
-core2core = paths.SequentialEnsemble(
-    [
-        paths.OptionalEnsemble(paths.AllInXEnsemble(stAll)),
-        paths.AllOutXEnsemble(stAll),
-        paths.SingleFrameEnsemble(
-            paths.AllInXEnsemble(stAll)
-        )
-    ]
+bootstrap = FullBootstrapping(
+    transition=network.transitions[(bound, unbound)],
+    snapshot=initial_snapshot,
+    engine=engine
 )
 
-# Generate initial trajectory
-print('Generate initial trajectory...')
-init_traj = engine_hot.generate(template, [reach_core.can_append])
-
-# State information utility functions
-def get_state(snapshot):
-    for state in states:
-        if interface_list[state][-1](snapshot):
-            return state
-
-    return '-'
-
-def get_core(snapshot):
-    for state in states:
-        if interface_list[state][0](snapshot):
-            return state
-
-    return '-'
-
-def get_interface(snapshot):
-    for state in states:
-        for idx, interface in enumerate(interface_list[state]):
-            if interface(snapshot):
-                return state, idx
-
-    return '-', 0
-
-def state_information(snapshot):
-    for state in states:
-        cv = cv_state[state]
-        print '%s: %7.2f' % (state, cv(snapshot)),
-        for idx, interface in enumerate(interface_list[state]):
-            if interface(snapshot):
-                print '+',
-                current_state = state
-            else:
-                print '-',
-
-        print
-
-    print 'The initial configuration is in state', current_state
-state_information(init_traj[-1])
-
-# Generate intercore trajectories
-print('Generate intercore trajectories...')
-tt = init_traj
-found_states = set()
-missing_states = set(states)
-data = np.array([[cv_state[state](frame) for state in states] for frame in tt])
-found_states.update([state for state in missing_states if any(map(interface_list[state][0], tt))])
-missing_states = missing_states - found_states
-storage.save(tt)
-initials = {state : list() for state in states}
-
-chunksize = 5
-first = True
-count = 0
-while len(missing_states) > 0 or first:
-    first = False
-    while True:
-        oldtt = tt
-        try:
-            count += 1
-            try:
-                tt = engine_hot.generate_forward(tt[-1].reversed, core2core)
-                storage.save(tt)
-
-                for state in states:
-                    if vol_state[state](tt[0]):
-                        initials[state].append(tt[0])
-                    if vol_state[state](tt[-1]):
-                        initials[state].append(tt[-1].reversed)
-
-                found_states.update([state for state in missing_states if any(map(vol_state[state], tt[[0,-1]]))])
-                missing_states = missing_states - found_states
-                paths.tools.refresh_output(
-                    '[%4d] %4d  %s < %4d > %s   still missing states %s\n' % (
-                        count,
-                        len(storage.trajectories),
-                        get_state(tt[0]),
-                        len(tt) - 2,
-                        get_state(tt[-1]),
-                        ''.join(missing_states)
-                    )
-                )
-
-                if len(storage.trajectories) % chunksize == 0:
-                    break
-            except ValueError:
-                paths.tools.refresh_output(
-                    '[%4d] %4d  %s < ERROR > ??   still missing states %s\n' % (
-                        count,
-                        len(storage.trajectories),
-                        get_state(tt[0]),
-                        ''.join(missing_states)
-                    )
-                )
-
-        except Exception as e:
-            # NaN exception?
-            if str(e) == 'Particle coordinate is nan':
-                print(e)
-                tt = oldtt
-            else:
-                raise(e)
-
-paths.tools.refresh_output('DONE!\n')
-
-# Set up MSTIS
-print('Set up MSTIS')
-mstis = paths.MSTISNetwork([
-    (
-        vol_state[state],
-        interface_list[state][0:],
-        cv_state[state]
-    ) for state in states
-])
-
-storage.save(mstis)
-
-initial_bootstrap = dict()
-
-for state in states:
-    while state not in initial_bootstrap:
-        try:
-            paths.tools.refresh_output(
-                'Bootstrapping state ' + state
-            )
-            from_state = vol_state[state]
-            bootstrapA = paths.FullBootstrapping(
-                transition=mstis.from_state[from_state],
-                snapshot=random.choice(initials[state]),
-                engine=engine,
-                extra_interfaces=[interface_list[state][-1]],
-                initial_max_length=20
-            )
-            paths.tools.refresh_output(
-                'Bootstrapping state ' + state + " - let's go"
-            )
-            final = bootstrapA.run(max_ensemble_rounds=2, build_attempts=5)
-            if all([s.ensemble(s) for s in final]):
-                initial_bootstrap[state] = final
-        except ValueError:
-            paths.tools.refresh_output(
-                'Encountered NaN'
-            )
-        except RuntimeError:
-            paths.tools.refresh_output(
-                'Too many attempts. Start retry.'
-            )
-
-paths.tools.refresh_output(
-    'DONE!'
-)
+#
+# OLD
+#
 
 total_sample_set = paths.SampleSet.relabel_replicas_per_ensemble(
     initial_bootstrap.values()
