@@ -134,8 +134,8 @@ state_centers = {
 ninterfaces = 30
 print('There are %d interfaces per state')
 interface_levels = {
-    'bound  ' : np.linspace(3.1, 6.9, ninterfaces),
-    'unbound' : np.linspace(3.1, 6.9, ninterfaces)
+    'bound  ' : np.linspace(3.1, 5.0, ninterfaces),
+    'unbound' : np.linspace(5.1, 6.9, ninterfaces)
 }
 
 cv_state = dict()
