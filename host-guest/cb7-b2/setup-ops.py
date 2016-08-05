@@ -41,7 +41,7 @@ print('Creating template...')
 template = engine.snapshot_from_testsystem(testsystem)
 
 print('Creating an integrator...')
-integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
@@ -51,9 +51,9 @@ properties = {'OpenCLPrecision': 'mixed'}
 # Create an engine
 print('Creating engine...')
 engine_options = {
-    'n_frames_max': 2000,
+    'n_frames_max': 1000,
     'platform': 'CPU',
-    'n_steps_per_frame': 10
+    'n_steps_per_frame': 50
 }
 engine = engine.Engine(
     template.topology,
@@ -66,7 +66,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -117,7 +117,8 @@ storage.save([compute_contacts])
 def compute_cv(snapshot, center, compute_contacts):
     from simtk import unit
     distances = compute_contacts(snapshot)
-    return distances[0][0] * 10 # convert from nanometers
+    distance = distances[0][0] * 10 # convert from nanometers to angstroms
+    return distance
 
 # State definitions
 states = [
@@ -125,14 +126,15 @@ states = [
     'unbound']
 
 state_centers = {
-    'bound  ' : 0.0,
-    'unbound' : 10.0,
+    'bound  ' : 2.8,
+    'unbound' : 7.0,
 }
 
 ninterfaces = 30
+print('There are %d interfaces per state')
 interface_levels = {
-    'bound  ' : np.linspace(3.0, 10.0, ninterfaces),
-    'unbound' : np.linspace(0.0, 7.0, ninterfaces)
+    'bound  ' : np.linspace(2.9, 6.9, ninterfaces),
+    'unbound' : np.linspace(0.0, 4.0, ninterfaces)
 }
 
 cv_state = dict()
