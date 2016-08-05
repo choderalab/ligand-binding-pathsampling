@@ -66,7 +66,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(1800*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -118,6 +118,7 @@ def compute_cv(snapshot, center, compute_contacts):
     from simtk import unit
     distances = compute_contacts(snapshot)
     distance = distances[0][0] * 10 # convert from nanometers to angstroms
+    print('%8.3f' % distance)
     return distance
 
 # State definitions
@@ -243,6 +244,7 @@ count = 0
 while len(missing_states) > 0 or first:
     first = False
     while True:
+        oldtt = tt
         try:
             count += 1
             try:
@@ -284,6 +286,7 @@ while len(missing_states) > 0 or first:
             # NaN exception?
             if str(e) == 'Particle coordinate is nan':
                 print(e)
+                tt = oldtt
             else:
                 raise(e)
 
