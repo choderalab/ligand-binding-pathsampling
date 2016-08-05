@@ -113,6 +113,7 @@ storage.save([compute_contacts])
 
 # Create CV states for bound and unbound
 def compute_cv(snapshot, center, compute_contacts):
+    from simtk import unit
     [distances, residue_pairs] = compute_contacts(snapshot)
     return distances[0] / unit.angstroms
 
