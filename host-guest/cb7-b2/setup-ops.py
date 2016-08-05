@@ -156,8 +156,8 @@ elif initial_trajectory_method == 'ratchet':
         snapshot=initial_snapshot_hot,
         engine=engine_hot
     )
-    bootstrap.run()
-    initial_trajectories = [ s.trajectory for s in list(bootstrap) ]
+    initial_sample_set = bootstrap.run()
+    initial_trajectories = [s.trajectory for s in initial_sample_set]
 else:
     raise Exception('initial trajectory method "%s" unknown' % initial_trajectory_method)
 
