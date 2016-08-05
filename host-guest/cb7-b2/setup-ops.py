@@ -118,7 +118,7 @@ def compute_cv(snapshot, center, compute_contacts):
     from simtk import unit
     distances = compute_contacts(snapshot)
     distance = distances[0][0] * 10 # convert from nanometers to angstroms
-    print('%8.3f' % distance)
+    #print('%8.3f' % distance)
     return distance
 
 # State definitions
@@ -127,15 +127,15 @@ states = [
     'unbound']
 
 state_centers = {
-    'bound  ' : 2.8,
+    'bound  ' : 3.0,
     'unbound' : 7.0,
 }
 
 ninterfaces = 30
 print('There are %d interfaces per state')
 interface_levels = {
-    'bound  ' : np.linspace(2.9, 6.9, ninterfaces),
-    'unbound' : np.linspace(0.0, 4.0, ninterfaces)
+    'bound  ' : np.linspace(3.1, 6.9, ninterfaces),
+    'unbound' : np.linspace(3.1, 6.9, ninterfaces)
 }
 
 cv_state = dict()
