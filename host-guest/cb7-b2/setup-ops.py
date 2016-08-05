@@ -148,7 +148,7 @@ long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
 
 # split out the subtrajectory of interest
 tmp_network = paths.TPSNetwork(bound, unbound)
-short_trajectory = tmp.network.ensembles[0].split(long_trajectory)
+short_trajectory = tmp_network.ensembles[0].split(long_trajectory)
 
 bootstrap = FullBootstrapping(
     transition=network.transitions[(bound, unbound)],
