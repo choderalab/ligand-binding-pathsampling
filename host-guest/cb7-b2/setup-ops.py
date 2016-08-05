@@ -120,16 +120,19 @@ def compute_cv(snapshot, center, compute_contacts):
     return distances[0][0] * 10 # convert from nanometers
 
 # State definitions
-states = ['bound', 'unbound']
+states = [
+    'bound  ',
+    'unbound']
 
 state_centers = {
-    'bound' : 0.0,
+    'bound  ' : 0.0,
     'unbound' : 10.0,
 }
 
+ninterfaces = 30
 interface_levels = {
-    'bound' : np.array([0.0, 10.0]),
-    'unbound' : np.array([0.0, 10.0])
+    'bound  ' : np.linspace(3.0, 10.0, ninterfaces),
+    'unbound' : np.linspace(0.0, 7.0, ninterfaces)
 }
 
 cv_state = dict()
@@ -182,7 +185,29 @@ core2core = paths.SequentialEnsemble(
 print('Generate initial trajectory...')
 init_traj = engine_hot.generate(template, [reach_core.can_append])
 
-# Write information about initial state
+# State information utility functions
+def get_state(snapshot):
+    for state in states:
+        if interface_list[state][-1](snapshot):
+            return state
+
+    return '-'
+
+def get_core(snapshot):
+    for state in states:
+        if interface_list[state][0](snapshot):
+            return state
+
+    return '-'
+
+def get_interface(snapshot):
+    for state in states:
+        for idx, interface in enumerate(interface_list[state]):
+            if interface(snapshot):
+                return state, idx
+
+    return '-', 0
+
 def state_information(snapshot):
     for state in states:
         cv = cv_state[state]
@@ -230,7 +255,7 @@ while len(missing_states) > 0 or first:
             found_states.update([state for state in missing_states if any(map(vol_state[state], tt[[0,-1]]))])
             missing_states = missing_states - found_states
             paths.tools.refresh_output(
-                '[%4d] %4d  %s < %4d > %s   still missing states %s' % (
+                '[%4d] %4d  %s < %4d > %s   still missing states %s\n' % (
                     count,
                     len(storage.trajectories),
                     get_state(tt[0]),
@@ -244,7 +269,7 @@ while len(missing_states) > 0 or first:
                 break
         except ValueError:
             paths.tools.refresh_output(
-                '[%4d] %4d  %s < ERROR > ??   still missing states %s' % (
+                '[%4d] %4d  %s < ERROR > ??   still missing states %s\n' % (
                     count,
                     len(storage.trajectories),
                     get_state(tt[0]),
