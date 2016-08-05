@@ -130,9 +130,8 @@ min_unbound = 7.0 # angstroms, minimum unbound state separation distance
 
 print('Creating interfaces...')
 ninterfaces = 30
-# note that we just changed CVRangeVolume => CVDefinedVolume, but you haven't updated that yet
-bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
-unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
+bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
+unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 6.9, ninterfaces))
 
 print('Creating network...')
@@ -146,8 +145,7 @@ if initial_trajectory_method == 'high-temperature':
     long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
     # split out the subtrajectory of interest
     tmp_network = paths.TPSNetwork(bound, unbound)
-    short_trajectory = tmp_network.all_ensembles[0].split(long_trajectory)
-    initial_trajectories = [ short_trajectory ]
+    initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
 
 elif initial_trajectory_method == 'ratchet':
     print('Bootstrapping initial trajectory...')
