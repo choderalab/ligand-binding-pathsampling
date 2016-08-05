@@ -101,6 +101,7 @@ storage.tag['hot_template'] = engine_hot.current_snapshot
 print(template.topology)
 compute_contacts = paths.MDTrajFunctionCV(
     name="compute_contacts",
+    cv_scalarize_numpy_singletons=False, # needed because compute_contacts() does not return a single numpy array
     contacts=[[0,1]],
     f=md.compute_contacts,
     topology=template.topology,
