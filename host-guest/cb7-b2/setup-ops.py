@@ -45,7 +45,7 @@ integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
-platform_name = 'CPU'
+platform_name = 'CUDA'
 platform = openmm.Platform.getPlatformByName(platform_name)
 properties = {'OpenCLPrecision': 'mixed'}
 
@@ -102,7 +102,7 @@ storage.tag['hot_template'] = engine_hot.current_snapshot
 # Define order parameters
 # Compute the closest heavy atom distances between receptor and ligand
 cv = paths.MDTrajFunctionCV(
-    name="compute_contacts",
+    name="distance",
     cv_scalarize_numpy_singletons=False, # needed because compute_contacts() does not return a single numpy array
     contacts=[[0,1]],
     f=md.compute_contacts,
