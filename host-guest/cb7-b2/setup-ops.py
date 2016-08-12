@@ -45,14 +45,14 @@ integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
-platform_name = 'OpenCL'
+platform_name = 'CPU'
 platform = openmm.Platform.getPlatformByName(platform_name)
 properties = {'OpenCLPrecision': 'mixed'}
 
 # Create an engine
 print('Creating engine...')
 engine_options = {
-    'n_frames_max': 1000,
+    'n_frames_max': 100,
     'platform': platform_name,
     'n_steps_per_frame': 250
 }
@@ -67,7 +67,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(900*unit.kelvin, 10.0/unit.picoseconds, 2.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(2000*unit.kelvin, 10.0/unit.picoseconds, 1.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -109,51 +109,52 @@ cv = paths.MDTrajFunctionCV(
     topology=template.topology,
     scheme='closest-heavy',
     ignore_nonprotein=False,
-    periodic=True
+    periodic=False
 ).with_diskcache()
 storage.save([cv])
-
-# Create CV states for bound and unbound
-def compute_cv(snapshot, center, compute_contacts):
-    from simtk import unit
-    distances = cv(snapshot)
-    distance = distances[0][0] * 10 # convert from nanometers to angstroms
-    #print('%8.3f' % distance)
-    return distance
 
 # State definitions
 states = [
     'bound  ',
     'unbound']
 
-max_bound   = 3.0 # angstroms, maximum bound state separation distance
+max_bound   = 3.5 # angstroms, maximum bound state separation distance
 min_unbound = 7.0 # angstroms, minimum unbound state separation distance
 
 print('Creating interfaces...')
 ninterfaces = 30
-bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
-unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
-interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(3.1, 6.9, ninterfaces))
+# CVDefinedVolume?
+bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
+unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.1, min_unbound-0.1, ninterfaces))
 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
 
-initial_trajectory_method = 'bootstrap'
+initial_trajectory_method = 'high-temperature'
 if initial_trajectory_method == 'high-temperature':
-    # generate high-temperature trajectory
+    # We are starting in the bound state, so
+    # generate high-temperature trajectory that reaches the unbound state
     print('Generating high-temperature trajectory...')
-    ensemble = paths.ExitsXEnsemble(bound) & paths.EntersXEnsemble(unbound)
+    #ensemble = not (paths.ExitsXEnsemble(bound) & paths.EntersXEnsemble(unbound))
+    unbinding_ensemble = paths.AllOutXEnsemble(unbound)
+    bridging_ensemble = paths.AllOutXEnsemble(bound) & paths.AllOutXEnsemble(unbound)
     initial_trajectories = list()
     tmp_network = paths.TPSNetwork(bound, unbound)
     attempt = 0
     while len(initial_trajectories) == 0:
         print('Attempt %d' % attempt)
-        long_trajectory = engine_hot.generate(initial_snapshot_hot, [ensemble])
+        long_trajectory = engine_hot.generate(initial_snapshot_hot, [unbinding_ensemble])
+        print('long trajectory:')
         print(long_trajectory)
+        distances = np.array([ cv(snapshot)[0][0]*10 for snapshot in long_trajectory ])
+        print(distances)
         # split out the subtrajectory of interest
         initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
+        print('initial trajectories:')
         print(initial_trajectories)
         attempt += 1
+        print('')
 
 elif initial_trajectory_method == 'bootstrap':
     print('Bootstrapping initial trajectory...')
