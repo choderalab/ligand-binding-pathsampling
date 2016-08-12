@@ -36,6 +36,8 @@ print('Opening storage...')
 storage = paths.Storage("host-guest.nc", 'r')
 
 distance = storage.cvs['compute_contacts']
-for traj in storage.trajectories[1:]:
+for (index, traj) in enumerate(storage.trajectories[1:]):
     x = distance(traj).flatten()
     print x
+    filename = 'trajectory-%05d.pdb' % index
+    storage.trajectories[0].md().save_pdb(filename)

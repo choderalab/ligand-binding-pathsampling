@@ -54,7 +54,7 @@ print('Creating engine...')
 engine_options = {
     'n_frames_max': 500,
     'platform': platform_name,
-    'n_steps_per_frame': 50
+    'n_steps_per_frame': 100
 }
 engine = engine.Engine(
     template.topology,
@@ -210,8 +210,8 @@ mistis_calc = paths.PathSampling(
     move_scheme=scheme,
     sample_set=sset
 )
-mistis_calc.save_frequency = 100
+mistis_calc.save_frequency = 1000
 
 import logging.config
 logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
-mistis_calc.run(400)
+mistis_calc.run(10000)
