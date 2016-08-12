@@ -118,15 +118,15 @@ states = [
     'bound  ',
     'unbound']
 
-max_bound   = 3.5 # angstroms, maximum bound state separation distance
-min_unbound = 7.0 # angstroms, minimum unbound state separation distance
+max_bound   = 0.35 # nanometers, maximum bound state separation distance
+min_unbound = 0.70 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
 ninterfaces = 30
 # CVDefinedVolume?
 bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
-interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.1, min_unbound-0.1, ninterfaces))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.01, min_unbound-0.01, ninterfaces))
 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
@@ -147,12 +147,14 @@ if initial_trajectory_method == 'high-temperature':
         long_trajectory = engine_hot.generate(initial_snapshot_hot, [unbinding_ensemble])
         print('long trajectory:')
         print(long_trajectory)
-        distances = np.array([ cv(snapshot)[0][0]*10 for snapshot in long_trajectory ])
+        distances = np.array([ cv(snapshot)[0][0] for snapshot in long_trajectory ])
         print(distances)
         # split out the subtrajectory of interest
         initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
         print('initial trajectories:')
         print(initial_trajectories)
+        distances = np.array([ cv(snapshot)[0][0] for snapshot in initial_trajectories[0] ])
+        print(distances)
         attempt += 1
         print('')
 
