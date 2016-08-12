@@ -125,7 +125,7 @@ print('Creating interfaces...')
 ninterfaces = 5
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
-interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.01, min_unbound-0.1, ninterfaces))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.1, ninterfaces))
 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
@@ -139,9 +139,10 @@ if initial_trajectory_method == 'high-temperature':
     unbinding_ensemble = paths.AllOutXEnsemble(unbound)
     bridging_ensemble = paths.AllOutXEnsemble(bound) & paths.AllOutXEnsemble(unbound)
     initial_trajectories = list()
+    minus_trajectories = list()
     tmp_network = paths.TPSNetwork(bound, unbound)
     attempt = 0
-    while len(initial_trajectories) == 0:
+    while (len(initial_trajectories) == 0) or (len(minus_trajectories) == 0):
         print('Attempt %d' % attempt)
         long_trajectory = engine_hot.generate(initial_snapshot_hot, [unbinding_ensemble])
         print('long trajectory:')
@@ -155,9 +156,22 @@ if initial_trajectory_method == 'high-temperature':
         if len(initial_trajectories) > 0:
             distances = np.array([ cv(snapshot)[0][0] for snapshot in initial_trajectories[0] ])
             print(distances)
+        print('minus trajectories')
+        minus_trajectories = mistis.minus_ensembles[0].split(long_trajectory)
+        print(minus_trajectories)
+        if len(minus_trajectories) > 0:
+            distances = np.array([ cv(snapshot)[0][0] for snapshot in minus_trajectories[0] ])
+            print(distances)
         attempt += 1
         print('')
 
+        # Create a network to study unbinding paths
+        # note the list/tuple structure: that's because this is normally a list of tuples,
+        # each tuple representing a transition to study
+        scheme = paths.DefaultScheme(mistis, engine=engine)
+        sset = scheme.initial_conditions_from_trajectories(initial_trajectories + minus_trajectories)
+        print scheme.initial_conditions_report(sset)
+        
 elif initial_trajectory_method == 'bootstrap':
     print('Bootstrapping initial trajectory...')
     bootstrap = paths.FullBootstrapping(
@@ -168,29 +182,27 @@ elif initial_trajectory_method == 'bootstrap':
     initial_sample_set = bootstrap.run()
     initial_trajectories = [s.trajectory for s in initial_sample_set]
     print(initial_trajectories)
+
+    scheme = paths.DefaultScheme(mistis, engine=engine)
+    sset = scheme.initial_conditions_from_trajectories(initial_trajectories + minus_trajectories)
+    print scheme.initial_conditions_report(sset)
+
+    # Populate minus ensemble
+    print('Populating the minus ensemble')
+    minus_samples = []
+    for minus in mistis.minus_ensembles:
+        samp = minus.populate_minus_ensemble_from_set(
+            samples=sset,
+            minus_replica_id=-mistis.minus_ensembles.index(minus)-1,
+            engine=engine
+        )
+        minus_samples.append(samp)
+
+    sset = sset.apply_samples(minus_samples)
+    print scheme.initial_conditions_report(sset)
+
 else:
     raise Exception('initial trajectory method "%s" unknown' % initial_trajectory_method)
-
-# Create a network to study unbinding paths
-# note the list/tuple structure: that's because this is normally a list of tuples,
-# each tuple representing a transition to study
-scheme = paths.DefaultScheme(mistis, engine=engine)
-sset = scheme.initial_conditions_from_trajectories(initial_trajectories)
-print scheme.initial_conditions_report(sset)
-
-# Populate minus ensemble
-print('Populating the minus ensemble')
-minus_samples = []
-for minus in mistis.minus_ensembles:
-    samp = minus.populate_minus_ensemble_from_set(
-        samples=sset,
-        minus_replica_id=-mistis.minus_ensembles.index(minus)-1,
-        engine=engine
-    )
-    minus_samples.append(samp)
-
-sset = sset.apply_samples(minus_samples)
-print scheme.initial_conditions_report(sset)
 
 print('Running MISTIS')
 mistis_calc = paths.PathSampling(
