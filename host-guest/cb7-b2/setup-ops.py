@@ -125,7 +125,7 @@ print('Creating interfaces...')
 ninterfaces = 5
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
-interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.01, min_unbound-0.01, ninterfaces))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.01, min_unbound-0.1, ninterfaces))
 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
@@ -176,19 +176,6 @@ else:
 # each tuple representing a transition to study
 scheme = paths.DefaultScheme(mistis, engine=engine)
 sset = scheme.initial_conditions_from_trajectories(initial_trajectories)
-
-# Populate minus ensemble
-minus_samples = []
-for minus in mistis.minus_ensembles:
-    samp = minus.populate_minus_ensemble_from_set(
-        samples=sset,
-        minus_replica_id=-mistis.minus_ensembles.index(minus)-1,
-        engine=engine_hot
-    )
-    minus_samples.append(samp)
-
-sset = sset.apply_samples(minus_samples)
-
 print scheme.initial_conditions_report(sset)
 
 # Populate minus ensemble
@@ -203,6 +190,7 @@ for minus in mistis.minus_ensembles:
     minus_samples.append(samp)
 
 sset = sset.apply_samples(minus_samples)
+print scheme.initial_conditions_report(sset)
 
 print('Running MISTIS')
 mistis_calc = paths.PathSampling(
