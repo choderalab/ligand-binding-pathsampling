@@ -123,9 +123,8 @@ min_unbound = 0.70 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
 ninterfaces = 30
-# CVDefinedVolume?
-bound = paths.CVRangeVolume(cv, lambda_min=0.0, lambda_max=max_bound)
-unbound = paths.CVRangeVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
+bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
+unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound+0.01, min_unbound-0.01, ninterfaces))
 
 print('Creating network...')
