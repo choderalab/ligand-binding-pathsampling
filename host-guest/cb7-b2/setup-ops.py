@@ -152,8 +152,9 @@ if initial_trajectory_method == 'high-temperature':
         initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
         print('initial trajectories:')
         print(initial_trajectories)
-        distances = np.array([ cv(snapshot)[0][0] for snapshot in initial_trajectories[0] ])
-        print(distances)
+        if len(initial_trajectories) > 0:
+            distances = np.array([ cv(snapshot)[0][0] for snapshot in initial_trajectories[0] ])
+            print(distances)
         attempt += 1
         print('')
 
