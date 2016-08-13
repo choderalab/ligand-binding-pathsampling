@@ -39,8 +39,8 @@ distance = storage.cvs['distance']
 thin = 100
 last_index = -thin
 for (index, traj) in enumerate(storage.trajectories[1:]):
-    x = distance(traj).flatten()
-    if np.any(x < 0.35) and np.any(x > 0.65) and ((index-last_index) > thin):
+    x = np.array(distance(traj))
+    if np.any(x < 0.05) and np.any(x > 0.95) and ((index-last_index) > thin):
         print(index, x)
         filename = 'trajectory-%05d.pdb' % index
         storage.trajectories[0].md().save_pdb(filename)

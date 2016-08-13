@@ -101,7 +101,7 @@ storage.tag['hot_template'] = engine_hot.current_snapshot
 
 # Define order parameters
 # Compute the closest heavy atom distances between receptor and ligand
-cv = paths.MDTrajFunctionCV(
+cv_old = paths.MDTrajFunctionCV(
     name="distance",
     cv_scalarize_numpy_singletons=False, # needed because compute_contacts() does not return a single numpy array
     contacts=[[0,1]],
@@ -111,6 +111,19 @@ cv = paths.MDTrajFunctionCV(
     ignore_nonprotein=False,
     periodic=False
 ).with_diskcache()
+
+def distance(snapshot, receptor_atoms, ligand_atoms):
+    import numpy as np
+    receptor_com = snapshot.xyz[receptor_atoms,:].mean(0)
+    ligand_com = snapshot.xyz[ligand_atoms,:].mean(0)
+    return np.sqrt(((receptor_com - ligand_com)**2).sum())
+
+cv = paths.CoordinateFunctionCV(
+    name="distance",
+    f=distance,
+    receptor_atoms=receptor_atoms,
+    ligand_atoms=ligand_atoms
+).with_diskcache()
 storage.save([cv])
 
 # State definitions
@@ -118,11 +131,11 @@ states = [
     'bound  ',
     'unbound']
 
-max_bound   = 0.35 # nanometers, maximum bound state separation distance
-min_unbound = 0.70 # nanometers, minimum unbound state separation distance
+max_bound   = 0.05 # nanometers, maximum bound state separation distance
+min_unbound = 1.00 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
-ninterfaces = 5
+ninterfaces = 9
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.1, ninterfaces))
@@ -147,20 +160,20 @@ if initial_trajectory_method == 'high-temperature':
         long_trajectory = engine_hot.generate(initial_snapshot_hot, [unbinding_ensemble])
         print('long trajectory:')
         print(long_trajectory)
-        distances = np.array([ cv(snapshot)[0][0] for snapshot in long_trajectory ])
+        distances = np.array([ cv(snapshot) for snapshot in long_trajectory ])
         print(distances)
         # split out the subtrajectory of interest
         initial_trajectories = tmp_network.all_ensembles[0].split(long_trajectory)
         print('initial trajectories:')
         print(initial_trajectories)
         if len(initial_trajectories) > 0:
-            distances = np.array([ cv(snapshot)[0][0] for snapshot in initial_trajectories[0] ])
+            distances = np.array([ cv(snapshot) for snapshot in initial_trajectories[0] ])
             print(distances)
         print('minus trajectories')
         minus_trajectories = mistis.minus_ensembles[0].split(long_trajectory)
         print(minus_trajectories)
         if len(minus_trajectories) > 0:
-            distances = np.array([ cv(snapshot)[0][0] for snapshot in minus_trajectories[0] ])
+            distances = np.array([ cv(snapshot) for snapshot in minus_trajectories[0] ])
             print(distances)
         attempt += 1
         print('')
@@ -210,8 +223,8 @@ mistis_calc = paths.PathSampling(
     move_scheme=scheme,
     sample_set=sset
 )
-mistis_calc.save_frequency = 1000
+mistis_calc.save_frequency = 100
 
 import logging.config
 logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
-mistis_calc.run(10000)
+mistis_calc.run(1000)
