@@ -35,9 +35,13 @@ ligand_atoms = np.arange(126, 156)
 print('Opening storage...')
 storage = paths.Storage("host-guest.nc", 'r')
 
-distance = storage.cvs['compute_contacts']
+distance = storage.cvs['distance']
+thin = 100
+last_index = -thin
 for (index, traj) in enumerate(storage.trajectories[1:]):
     x = distance(traj).flatten()
-    print x
-    filename = 'trajectory-%05d.pdb' % index
-    storage.trajectories[0].md().save_pdb(filename)
+    if np.any(x < 0.35) and np.any(x > 0.65) and ((index-last_index) > thin):
+        print(index, x)
+        filename = 'trajectory-%05d.pdb' % index
+        storage.trajectories[0].md().save_pdb(filename)
+        last_index = index
