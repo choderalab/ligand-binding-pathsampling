@@ -33,8 +33,9 @@ ligand_atoms = np.arange(126, 156)
 
 # Create host-guest test system
 print('Creating host-guest system...')
-from openmmtools.testsystems import HostGuestVacuum
-testsystem = HostGuestVacuum()
+from openmmtools import testsystems
+testsystem = testsystems.HostGuestVacuum()
+#testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
 
 # Generate an OpenPathSampling template.
 print('Creating template...')
@@ -52,9 +53,9 @@ properties = {'OpenCLPrecision': 'mixed'}
 # Create an engine
 print('Creating engine...')
 engine_options = {
-    'n_frames_max': 500,
+    'n_frames_max': 250,
     'platform': platform_name,
-    'n_steps_per_frame': 100
+    'n_steps_per_frame': 250
 }
 engine = engine.Engine(
     template.topology,
@@ -67,7 +68,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(2000*unit.kelvin, 10.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator_hot = openmm.LangevinIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -90,7 +91,7 @@ print platform.getName()
 # Equilibrate
 engine.current_snapshot = template
 engine.minimize()
-initial_snapshot_cool = engine.current_snapshot
+initial_snapshot = engine.current_snapshot
 
 engine_hot.current_snapshot = template
 engine_hot.minimize()
@@ -135,15 +136,15 @@ max_bound   = 0.05 # nanometers, maximum bound state separation distance
 min_unbound = 1.00 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
-ninterfaces = 9
+ninterfaces = 19
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
-interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.1, ninterfaces))
+interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.01, ninterfaces))
 
 print('Creating network...')
 mistis = paths.MISTISNetwork([(bound, interfaces, unbound)])
 
-initial_trajectory_method = 'high-temperature'
+initial_trajectory_method = 'bootstrap'
 if initial_trajectory_method == 'high-temperature':
     # We are starting in the bound state, so
     # generate high-temperature trajectory that reaches the unbound state
@@ -189,7 +190,7 @@ elif initial_trajectory_method == 'bootstrap':
     print('Bootstrapping initial trajectory...')
     bootstrap = paths.FullBootstrapping(
         transition=mistis.transitions[(bound, unbound)],
-        snapshot=initial_snapshot_hot,
+        snapshot=initial_snapshot,
         engine=engine_hot
     )
     initial_sample_set = bootstrap.run()
@@ -197,7 +198,7 @@ elif initial_trajectory_method == 'bootstrap':
     print(initial_trajectories)
 
     scheme = paths.DefaultScheme(mistis, engine=engine)
-    sset = scheme.initial_conditions_from_trajectories(initial_trajectories + minus_trajectories)
+    sset = scheme.initial_conditions_from_trajectories(initial_trajectories)
     print scheme.initial_conditions_report(sset)
 
     # Populate minus ensemble
