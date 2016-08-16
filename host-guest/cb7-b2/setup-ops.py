@@ -34,8 +34,8 @@ ligand_atoms = np.arange(126, 156)
 # Create host-guest test system
 print('Creating host-guest system...')
 from openmmtools import testsystems
-testsystem = testsystems.HostGuestVacuum()
-#testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
+#testsystem = testsystems.HostGuestVacuum()
+testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
 
 # Generate an OpenPathSampling template.
 print('Creating template...')
@@ -133,10 +133,10 @@ states = [
     'unbound']
 
 max_bound   = 0.05 # nanometers, maximum bound state separation distance
-min_unbound = 1.00 # nanometers, minimum unbound state separation distance
+min_unbound = 0.70 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
-ninterfaces = 19
+ninterfaces = 49
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.01, ninterfaces))
