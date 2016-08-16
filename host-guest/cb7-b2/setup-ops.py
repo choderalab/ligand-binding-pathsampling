@@ -42,6 +42,31 @@ inpcrd = app.AmberInpcrdFile('setup/complex-explicit.inpcrd')
 system = prmtop.createSystem(nonbondedMethod=app.CutoffPeriodic, constraints=app.HBonds, rigidWater=True, ewaldErrorTolerance=5.0e-5)
 topology = prmtop.topology
 positions = unit.Quantity(np.array(inpcrd.getPositions() / unit.angstroms), unit.angstroms)
+
+
+# Equilibrate at 1 atm at 300 K.
+print('Equilibrating...')
+import copy
+pressure = 1.0 * unit.atmospheres
+temperature = 300.0 * unit.kelvin
+frequency = 25
+barostat = openmm.MonteCarloBarostat(pressure, temperature, frequency)
+system_with_barostat = copy.deepcopy(system)
+system_with_barostat.addForce(barostat)
+collision_rate = 10.0 / unit.picoseconds
+timestep = 2.0 * unit.femtoseconds
+integrator = openmm.LangevinIntegrator(temperature, collision_rate, timestep)
+context = openmm.Context(system_with_barostat, integrator)
+context.setPositions(positions)
+niterations = 100
+nsteps = 500
+for iteration in range(niterations):
+    print('Iteration %5d / %5d: volume = %8.3f nm^3' % (iteration, niterations, context.getState().getPeriodicBoxVolume() / unit.nanometers**3))
+    integrator.step(nsteps)
+positions = context.getState(getPositions=True).getPositions(asNumpy=True)
+del context, integrator, system_with_barostat
+
+# Create test system
 from collections import namedtuple
 LocalTestSystem = namedtuple('LocalTestSystem', ['name', 'system', 'topology', 'positions'])
 testsystem = LocalTestSystem(name='CB7:B2', system=system, topology=topology, positions=positions)
