@@ -33,9 +33,18 @@ ligand_atoms = np.arange(126, 156)
 
 # Create host-guest test system
 print('Creating host-guest system...')
-from openmmtools import testsystems
+#from openmmtools import testsystems
 #testsystem = testsystems.HostGuestVacuum()
-testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
+#testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
+
+prmtop = app.AmberPrmtopFile('setup/complex-explicit.prmtop')
+inpcrd = app.AmberInpcrdFile('setup/complex-explicit.inpcrd')
+system = prmtop.createSystem(nonbondedMethod=app.CutoffPeriodic, constraints=app.HBonds, rigidWater=True, ewaldErrorTolerance=5.0e-5)
+topology = prmtop.topology
+positions = unit.Quantity(np.array(inpcrd.getPositions() / unit.angstroms), unit.angstroms)
+from collections import namedtuple
+LocalTestSystem = namedtuple('LocalTestSystem', ['name', 'system', 'topology', 'positions'])
+testsystem = LocalTestSystem(name='CB7:B2', system=system, topology=topology, positions=positions)
 
 # Generate an OpenPathSampling template.
 print('Creating template...')
@@ -53,13 +62,13 @@ properties = {'OpenCLPrecision': 'mixed'}
 # Create an engine
 print('Creating engine...')
 engine_options = {
-    'n_frames_max': 250,
+    'n_frames_max': 1000,
     'platform': platform_name,
-    'n_steps_per_frame': 250
+    'n_steps_per_frame': 50
 }
 engine = engine.Engine(
     template.topology,
-    testsystem.system,
+    system,
     integrator,
     properties=properties,
     options=engine_options
