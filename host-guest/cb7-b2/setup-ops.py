@@ -227,6 +227,7 @@ elif initial_trajectory_method == 'bootstrap':
         snapshot=initial_snapshot,
         engine=engine_hot
     )
+    storage.save(bootstrap)
     initial_sample_set = bootstrap.run()
     initial_trajectories = [s.trajectory for s in initial_sample_set]
     print(initial_trajectories)
