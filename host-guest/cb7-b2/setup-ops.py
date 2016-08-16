@@ -33,9 +33,18 @@ ligand_atoms = np.arange(126, 156)
 
 # Create host-guest test system
 print('Creating host-guest system...')
-from openmmtools import testsystems
-testsystem = testsystems.HostGuestVacuum()
+#from openmmtools import testsystems
+#testsystem = testsystems.HostGuestVacuum()
 #testsystem = testsystems.HostGuestExplicit(nonbondedMethod=openmm.app.CutoffPeriodic)
+
+prmtop = app.AmberPrmtopFile('setup/complex-explicit.prmtop')
+inpcrd = app.AmberInpcrdFile('setup/complex-explicit.inpcrd')
+system = prmtop.createSystem(nonbondedMethod=app.CutoffPeriodic, constraints=app.HBonds, rigidWater=True, ewaldErrorTolerance=5.0e-5)
+topology = prmtop.topology
+positions = unit.Quantity(np.array(inpcrd.getPositions() / unit.angstroms), unit.angstroms)
+from collections import namedtuple
+LocalTestSystem = namedtuple('LocalTestSystem', ['name', 'system', 'topology', 'positions'])
+testsystem = LocalTestSystem(name='CB7:B2', system=system, topology=topology, positions=positions)
 
 # Generate an OpenPathSampling template.
 print('Creating template...')
@@ -53,13 +62,13 @@ properties = {'OpenCLPrecision': 'mixed'}
 # Create an engine
 print('Creating engine...')
 engine_options = {
-    'n_frames_max': 250,
+    'n_frames_max': 1000,
     'platform': platform_name,
-    'n_steps_per_frame': 250
+    'n_steps_per_frame': 50
 }
 engine = engine.Engine(
     template.topology,
-    testsystem.system,
+    system,
     integrator,
     properties=properties,
     options=engine_options
@@ -136,7 +145,7 @@ max_bound   = 0.05 # nanometers, maximum bound state separation distance
 min_unbound = 1.00 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
-ninterfaces = 19
+ninterfaces = 49
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.01, ninterfaces))
