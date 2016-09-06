@@ -87,9 +87,9 @@ integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
-platform_name = 'CPU'
+platform_name = 'CUDA'
 platform = openmm.Platform.getPlatformByName(platform_name)
-properties = {'OpenCLPrecision': 'mixed'}
+openmm_properties = {'OpenCLPrecision': 'mixed'}
 
 # Create an engine
 print('Creating engine...')
@@ -102,7 +102,7 @@ engine = engine.Engine(
     template.topology,
     system,
     integrator,
-    properties=properties,
+    openmm_properties=openmm_properties,
     options=engine_options
 )
 engine.name = 'default'
