@@ -15,6 +15,8 @@ from simtk.openmm import app
 import openpathsampling as paths
 import openpathsampling.engines.openmm as engine
 
+from openmmtools.integrators import VVVRIntegrator
+
 import mdtraj as md
 
 # Import mojo for using units
@@ -55,10 +57,11 @@ system_with_barostat = copy.deepcopy(system)
 system_with_barostat.addForce(barostat)
 collision_rate = 10.0 / unit.picoseconds
 timestep = 2.0 * unit.femtoseconds
-integrator = openmm.LangevinIntegrator(temperature, collision_rate, timestep)
+#integrator = openmm.LangevinIntegrator(temperature, collision_rate, timestep)
+integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 context = openmm.Context(system_with_barostat, integrator)
 context.setPositions(positions)
-niterations = 100
+niterations = 1
 nsteps = 500
 for iteration in range(niterations):
     print('Iteration %5d / %5d: volume = %8.3f nm^3' % (iteration, niterations, context.getState().getPeriodicBoxVolume() / unit.nanometers**3))
@@ -76,11 +79,15 @@ print('Creating template...')
 template = engine.snapshot_from_testsystem(testsystem)
 
 print('Creating an integrator...')
-integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
+#integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
+temperature = 300 * unit.kelvin
+collision_rate = 1.0 / unit.picoseconds
+timestep = 2.0 * unit.femtoseconds
+integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 integrator.setConstraintTolerance(1.0e-6)
 
 print("Selecting a platform...")
-platform_name = 'CUDA'
+platform_name = 'CPU'
 platform = openmm.Platform.getPlatformByName(platform_name)
 properties = {'OpenCLPrecision': 'mixed'}
 
@@ -102,7 +109,8 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-integrator_hot = openmm.LangevinIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+#integrator_hot = openmm.LangevinIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator_hot = VVVRIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
@@ -219,7 +227,7 @@ if initial_trajectory_method == 'high-temperature':
         scheme = paths.DefaultScheme(mistis, engine=engine)
         sset = scheme.initial_conditions_from_trajectories(initial_trajectories + minus_trajectories)
         print scheme.initial_conditions_report(sset)
-        
+
 elif initial_trajectory_method == 'bootstrap':
     print('Bootstrapping initial trajectory...')
     bootstrap = paths.FullBootstrapping(
