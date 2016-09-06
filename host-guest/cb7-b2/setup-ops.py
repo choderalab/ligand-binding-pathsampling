@@ -51,19 +51,20 @@ print('Equilibrating...')
 import copy
 pressure = 1.0 * unit.atmospheres
 temperature = 300.0 * unit.kelvin
+temperature_hot = 600.0 * unit.kelvin
 frequency = 25
 barostat = openmm.MonteCarloBarostat(pressure, temperature, frequency)
 system_with_barostat = copy.deepcopy(system)
 system_with_barostat.addForce(barostat)
-collision_rate = 10.0 / unit.picoseconds
+collision_rate = 2.0 / unit.picoseconds
 timestep = 2.0 * unit.femtoseconds
-#integrator = openmm.LangevinIntegrator(temperature, collision_rate, timestep)
 integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 context = openmm.Context(system_with_barostat, integrator)
 context.setPositions(positions)
 niterations = 1
 nsteps = 500
 for iteration in range(niterations):
+    context.setVelocitiesToTemperature(temperature)
     print('Iteration %5d / %5d: volume = %8.3f nm^3' % (iteration, niterations, context.getState().getPeriodicBoxVolume() / unit.nanometers**3))
     integrator.step(nsteps)
 positions = context.getState(getPositions=True).getPositions(asNumpy=True)
@@ -79,10 +80,6 @@ print('Creating template...')
 template = engine.snapshot_from_testsystem(testsystem)
 
 print('Creating an integrator...')
-#integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
-temperature = 300 * unit.kelvin
-collision_rate = 1.0 / unit.picoseconds
-timestep = 2.0 * unit.femtoseconds
 integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 integrator.setConstraintTolerance(1.0e-6)
 
@@ -109,8 +106,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-#integrator_hot = openmm.LangevinIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
-integrator_hot = VVVRIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator_hot = VVVRIntegrator(temperature_hot, collision_rate, timestep)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
