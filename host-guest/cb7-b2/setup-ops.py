@@ -45,13 +45,15 @@ system = prmtop.createSystem(nonbondedMethod=app.CutoffPeriodic, constraints=app
 topology = prmtop.topology
 positions = unit.Quantity(np.array(inpcrd.getPositions() / unit.angstroms), unit.angstroms)
 
+pressure = 1.0 * unit.atmospheres
+temperature = 300.0 * unit.kelvin
+temperature_hot = 600.0 * unit.kelvin
+frequency = 25
+
 # If system is periodic, equilibrate at 1 atm at 300 K.
 if system.usesPeriodicBoundaryConditions():
-    print('Equilibrating...')
+    print('Equilibrating with barostat...')
     import copy
-    pressure = 1.0 * unit.atmospheres
-    temperature = 300.0 * unit.kelvin
-    frequency = 25
     barostat = openmm.MonteCarloBarostat(pressure, temperature, frequency)
     system_with_barostat = copy.deepcopy(system)
     system_with_barostat.addForce(barostat)
@@ -61,7 +63,7 @@ if system.usesPeriodicBoundaryConditions():
     integrator = VVVRIntegrator(temperature, collision_rate, timestep)
     context = openmm.Context(system_with_barostat, integrator)
     context.setPositions(positions)
-    niterations = 1
+    niterations = 20
     nsteps = 500
     for iteration in range(niterations):
         print('Iteration %5d / %5d: volume = %8.3f nm^3' % (iteration, niterations, context.getState().getPeriodicBoxVolume() / unit.nanometers**3))
@@ -70,6 +72,8 @@ if system.usesPeriodicBoundaryConditions():
     box_vectors = context.getState().getPeriodicBoxVectors()
     system.setDefaultPeriodicBoxVectors(*box_vectors)
     del context, integrator, system_with_barostat
+else:
+    print('System does not use periodic boundary conditions; skipping equilibration.')
 
 # Create test system
 from collections import namedtuple
@@ -94,7 +98,7 @@ print('Creating engine...')
 engine_options = {
     'n_frames_max': 1000,
     'platform': platform_name,
-    'n_steps_per_frame': 50
+    'n_steps_per_frame': 250
 }
 engine = engine.Engine(
     template.topology,
