@@ -81,10 +81,6 @@ print('Creating template...')
 template = engine.snapshot_from_testsystem(testsystem)
 
 print('Creating an integrator...')
-#integrator = openmm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 2.0*unit.femtoseconds)
-temperature = 300 * unit.kelvin
-collision_rate = 1.0 / unit.picoseconds
-timestep = 2.0 * unit.femtoseconds
 integrator = VVVRIntegrator(temperature, collision_rate, timestep)
 integrator.setConstraintTolerance(1.0e-6)
 
@@ -111,8 +107,7 @@ engine.name = 'default'
 
 # Create a hot engine for generating an initial unbinding path
 print('Creating a "hot" engine...')
-#integrator_hot = openmm.LangevinIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
-integrator_hot = VVVRIntegrator(600*unit.kelvin, 1.0/unit.picoseconds, 1.0*unit.femtoseconds)
+integrator_hot = VVVRIntegrator(temperature_hot, collision_rate, timestep)
 integrator_hot.setConstraintTolerance(1.0e-6)
 engine_hot = engine.from_new_options(integrator=integrator_hot)
 engine_hot.name = 'hot'
