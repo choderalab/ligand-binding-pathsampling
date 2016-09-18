@@ -42,8 +42,9 @@ for (index, traj) in enumerate(storage.trajectories):
     x = np.array(distance(traj))
     #if np.any(x < 0.05) and np.any(x > 0.95) and ((index-last_index) > thin):
     #if (x[0] < 0.05) and (x[-1] > 0.95) and ((index-last_index) > thin):
-    if (x[0] < 0.05) and (x[-1] > 0.70):
-        print(index, x)
+    if (x[0] < 0.05) and (x[-1] > 0.90):
+        print(index)
+        print(x)
         filename = 'trajectory-%05d.pdb' % index
-        traj.md().save_pdb(filename)
+        traj.to_mdtraj().save_pdb(filename)
         last_index = index

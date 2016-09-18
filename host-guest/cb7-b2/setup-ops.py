@@ -98,7 +98,7 @@ print('Creating engine...')
 engine_options = {
     'n_frames_max': 1000,
     'platform': platform_name,
-    'n_steps_per_frame': 250
+    'n_steps_per_frame': 50
 }
 engine = engine.Engine(
     template.topology,
@@ -179,7 +179,7 @@ max_bound   = 0.05 # nanometers, maximum bound state separation distance
 min_unbound = 0.90 # nanometers, minimum unbound state separation distance
 
 print('Creating interfaces...')
-ninterfaces = 50
+ninterfaces = 100
 bound = paths.CVDefinedVolume(cv, lambda_min=0.0, lambda_max=max_bound)
 unbound = paths.CVDefinedVolume(cv, lambda_min=min_unbound, lambda_max=float("inf"))
 interfaces = paths.VolumeInterfaceSet(cv, minvals=0.0, maxvals=np.linspace(max_bound, min_unbound-0.01, ninterfaces))
