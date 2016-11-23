@@ -3,3 +3,8 @@
 ## Requirements
 * `openpathsampling`
 * `openmmtools >=0.8.0`
+
+## To run
+
+* `python setup-ops.py`
+* `python analyze.py`
